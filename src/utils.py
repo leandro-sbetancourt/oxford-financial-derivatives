@@ -3,6 +3,7 @@ import numpy as np
 from scipy import integrate
 from tqdm import tqdm
 from math import floor
+import scipy.stats as stat
 
 
 class binomial_tree:
@@ -115,4 +116,22 @@ class GeometricBrownianMotion:
             x[t + 1,:] = x[t,:] * np.exp( dt * (self.mu - 0.5*self.sigma**2) + np.sqrt(dt) * self.sigma * errs[t,:] ) 
         return x
 
-  
+
+    
+def computeBlackScholesCallPrice(t,T,S,r,sigma,K):
+    d1 = (np.log(S/K) + (r + 0.5*sigma**2)*(T-t))/(sigma * np.sqrt(T-t))
+    d2 = d1 - sigma* np.sqrt(T-t)
+    return S*stat.norm.cdf(d1) - K*np.exp(-r*(T-t))*stat.norm.cdf(d2)
+
+def computeBlackScholesPutPrice(t,T,S,r,sigma,K):
+    return computeBlackScholesCallPrice(t,T,S,r,sigma,K) - (S - K*np.exp(-r*(T-t)))
+
+def call_option_payoff(K, S):
+    return np.maximum(S-K,0)
+
+def put_option_payoff(K, S):
+    return np.maximum(K-S,0)
+
+def computeDeltaCall(t,T,S,r,sigma,K):
+    d1 = (np.log(S/K) + (r + 0.5*sigma**2)*(T-t))/(sigma * np.sqrt(T-t))
+    return stat.norm.cdf(d1)
