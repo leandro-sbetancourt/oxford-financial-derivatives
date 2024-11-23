@@ -10,7 +10,7 @@ class binomial_tree:
     """
     Defines a binomial tree
     """
-    def __init__(self, r, p, T, Nt, u, d, S0):
+    def __init__(self, r, p, T, Nt, u, d, S0, payoff_fct = None, american = 'False'):
         self.p = p
         self.r = r
         self.u = u
@@ -19,9 +19,19 @@ class binomial_tree:
         self.Nt = Nt
         self.S0 = S0
         self.dt = self.T/self.Nt
+        self.R = 1. + self.dt * self.r
         self.timesteps = np.linspace(0, self.T, num = (Nt+1))
         assert self.d<1 + self.r * self.dt * self.T, 'there is ABRITRAGE!'
         assert self.u>1 + self.r * self.dt * self.T, 'there is ABRITRAGE!'
+        self.q = (self.R - self.d)/(self.u - self.d)
+        if payoff_fct is not None:
+            self.payoff_fct = payoff_fct
+            self.asset_prices = self.compute_asset_prices_upper_triangular()
+            if american is False:
+                self.derivative_prices = self.compute_european_derivative_prices_upper_triangular()
+            else:
+                self.derivative_prices, self.exercise_early = self.compute_american_derivative_prices_upper_triangular()
+            self.derivative_price_at_zero = self.derivative_prices[0,0]
 
     def simulate(self, nsims = 1):
         x = np.zeros((self.Nt+1, nsims))
@@ -30,6 +40,52 @@ class binomial_tree:
             randomness = np.random.binomial(n=1, p=self.p, size = (nsims,))
             x[t+1,:] = x[t,:] * self.u * randomness + x[t,:] * self.d * (1 - randomness)
         return x
+    
+    def compute_asset_prices_upper_triangular(self):
+        asset_prices = np.zeros((self.Nt+1,self.Nt+1))
+        for j in range(self.Nt+1):
+            for i in range(j+1):
+                asset_prices[i,j] = self.S0*self.u**(j-i)*self.d**(i)
+        return asset_prices
+    
+    def compute_one_step_derivative_price(self, Vu, Vd):
+        price = 1./self.R * (self.q * Vu + (1.-self.q)*Vd )
+        return price
+    
+    def compute_european_derivative_prices_upper_triangular(self):
+        derivative_prices = np.zeros((self.Nt+1,self.Nt+1))
+        derivative_prices[:] = np.nan
+        derivative_prices[:,-1] = self.payoff_fct(self.asset_prices[:,-1])
+        for j in range(self.Nt):
+            col = self.Nt - j - 1
+            for i in range(col+1):
+                Vu = derivative_prices[i, col+1]
+                Vd = derivative_prices[i+1, col+1]
+                derivative_prices[i,col] = self.compute_one_step_derivative_price(Vu,Vd)
+        return derivative_prices
+    
+    def compute_american_derivative_prices_upper_triangular(self):
+        derivative_prices = np.zeros((self.Nt+1,self.Nt+1))
+        derivative_prices[:] = np.nan
+        exercise_early = np.zeros((self.Nt+1,self.Nt+1))
+        derivative_prices[:,-1] = self.payoff_fct(self.asset_prices[:,-1])
+        for j in range(self.Nt):
+            col = self.Nt - j - 1
+            for i in range(col+1):
+                Vu = derivative_prices[i, col+1]
+                Vd = derivative_prices[i+1, col+1]
+                derivative_prices[i,col] = self.compute_one_step_derivative_price(Vu, Vd)
+                if derivative_prices[i,col] != derivative_prices[i,col]:
+                    print('NaN: Vu=', Vu,' Vd=',Vd,'i=',i,' col =',col)
+                if self.asset_prices[i,col] != self.asset_prices[i,col]:
+                    print('NaN: Vu=', Vu,' Vd=',Vd,'i=',i,' col =',col)
+                exercise_early[i,col] = ( np.round(self.payoff_fct(self.asset_prices[i,col]),15) 
+                                          > np.round(derivative_prices[i,col],15) ).astype(bool)
+                derivative_prices[i,col] = (derivative_prices[i,col] * (1-exercise_early[i,col]) 
+                                            + self.payoff_fct(self.asset_prices[i,col])* exercise_early[i,col])
+        return derivative_prices, exercise_early
+    
+    
 
 class RandomWalk:
     """
