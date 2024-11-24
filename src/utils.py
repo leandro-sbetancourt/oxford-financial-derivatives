@@ -10,7 +10,7 @@ class binomial_tree:
     """
     Defines a binomial tree
     """
-    def __init__(self, r, p, T, Nt, u, d, S0, payoff_fct = None, american = 'False'):
+    def __init__(self, r, p, T, Nt, u, d, S0, payoff_fct = None, american = False, simple_interest = True):
         self.p = p
         self.r = r
         self.u = u
@@ -19,7 +19,10 @@ class binomial_tree:
         self.Nt = Nt
         self.S0 = S0
         self.dt = self.T/self.Nt
-        self.R = 1. + self.dt * self.r
+        if simple_interest:
+            self.R = 1. + self.dt * self.r
+        else:
+            self.R = np.exp(self.dt * self.r)
         self.timesteps = np.linspace(0, self.T, num = (Nt+1))
         assert self.d<1 + self.r * self.dt * self.T, 'there is ABRITRAGE!'
         assert self.u>1 + self.r * self.dt * self.T, 'there is ABRITRAGE!'
@@ -27,10 +30,10 @@ class binomial_tree:
         if payoff_fct is not None:
             self.payoff_fct = payoff_fct
             self.asset_prices = self.compute_asset_prices_upper_triangular()
-            if american is False:
-                self.derivative_prices = self.compute_european_derivative_prices_upper_triangular()
-            else:
+            if american:
                 self.derivative_prices, self.exercise_early = self.compute_american_derivative_prices_upper_triangular()
+            else:
+                self.derivative_prices = self.compute_european_derivative_prices_upper_triangular()
             self.derivative_price_at_zero = self.derivative_prices[0,0]
 
     def simulate(self, nsims = 1):
@@ -56,7 +59,7 @@ class binomial_tree:
         derivative_prices = np.zeros((self.Nt+1,self.Nt+1))
         derivative_prices[:] = np.nan
         derivative_prices[:,-1] = self.payoff_fct(self.asset_prices[:,-1])
-        for j in range(self.Nt):
+        for j in tqdm(range(self.Nt)):
             col = self.Nt - j - 1
             for i in range(col+1):
                 Vu = derivative_prices[i, col+1]
@@ -69,7 +72,7 @@ class binomial_tree:
         derivative_prices[:] = np.nan
         exercise_early = np.zeros((self.Nt+1,self.Nt+1))
         derivative_prices[:,-1] = self.payoff_fct(self.asset_prices[:,-1])
-        for j in range(self.Nt):
+        for j in tqdm(range(self.Nt)):
             col = self.Nt - j - 1
             for i in range(col+1):
                 Vu = derivative_prices[i, col+1]
