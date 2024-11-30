@@ -10,7 +10,7 @@ class binomial_tree:
     """
     Defines a binomial tree
     """
-    def __init__(self, r, p, T, Nt, u, d, S0, payoff_fct = None, american = False, simple_interest = True):
+    def __init__(self, r, p, T, Nt, u, d, S0, payoff_fct = None, american = False, simple_interest = True, disable_progress_bar = False):
         self.p = p
         self.r = r
         self.u = u
@@ -19,6 +19,7 @@ class binomial_tree:
         self.Nt = Nt
         self.S0 = S0
         self.dt = self.T/self.Nt
+        self.disable_progress_bar = disable_progress_bar
         if simple_interest:
             self.R = 1. + self.dt * self.r
         else:
@@ -59,7 +60,7 @@ class binomial_tree:
         derivative_prices = np.zeros((self.Nt+1,self.Nt+1))
         derivative_prices[:] = np.nan
         derivative_prices[:,-1] = self.payoff_fct(self.asset_prices[:,-1])
-        for j in tqdm(range(self.Nt)):
+        for j in tqdm(range(self.Nt), disable= self.disable_progress_bar):
             col = self.Nt - j - 1
             for i in range(col+1):
                 Vu = derivative_prices[i, col+1]
@@ -72,7 +73,7 @@ class binomial_tree:
         derivative_prices[:] = np.nan
         exercise_early = np.zeros((self.Nt+1,self.Nt+1))
         derivative_prices[:,-1] = self.payoff_fct(self.asset_prices[:,-1])
-        for j in tqdm(range(self.Nt)):
+        for j in tqdm(range(self.Nt), disable= self.disable_progress_bar):
             col = self.Nt - j - 1
             for i in range(col+1):
                 Vu = derivative_prices[i, col+1]
